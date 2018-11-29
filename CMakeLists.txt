@@ -8,3 +8,4 @@ set(CMAKE_C_STANDARD_REQUIRED TRUE)
 add_executable(swic-xfer swic-xfer.c)
 
 install(TARGETS swic-xfer DESTINATION bin)
+install(PROGRAMS swic-loopback-test.py DESTINATION bin)
