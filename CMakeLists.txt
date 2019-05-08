@@ -13,6 +13,7 @@ install(TARGETS swic-xfer
         DESTINATION bin)
 install(PROGRAMS swic-loopback-test.py DESTINATION bin)
 install(PROGRAMS swic-max-speed.sh DESTINATION bin)
+install(PROGRAMS swic-throughput.py DESTINATION bin)
 install(FILES spacewire-video-receive.service
               spacewire-video-transmit.service
         DESTINATION lib/systemd/system)
