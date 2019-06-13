@@ -1,0 +1,19 @@
+# capturing video from a video sensor OV5647, encoding and
+# transmitting it to another Salute-EL24OM module using Spacewire
+
+[Unit]
+Description=SpaceWire video demonstration transmitter
+BindsTo=dev-spacewire0.device
+BindsTo=dev-v4l-by\x2dpath-platform\x2d37100000.codec\x2dvideo\x2dindex0.device
+BindsTo=dev-v4l-by\x2dpath-platform\x2d37200000.vinc\x2dvideo\x2dindex0.device
+After=dev-spacewire0.device
+After=dev-v4l-by\x2dpath-platform\x2d37100000.codec\x2dvideo\x2dindex0.device
+After=dev-v4l-by\x2dpath-platform\x2d37200000.vinc\x2dvideo\x2dindex0.device
+
+[Service]
+ExecStart=/bin/bash -c 'cap-enc -s 1024x768 -f1 /dev/v4l/by-path/platform-37200000.vinc-video-index0 \
+                        /dev/v4l/by-path/platform-37100000.codec-video-index0 | \
+                        swic-xfer /dev/spacewire0 s -s 8'
+
+[Install]
+WantedBy=multi-user.target
