@@ -5,6 +5,7 @@
 import filecmp
 import math
 import os
+import random
 import subprocess
 import unittest
 
@@ -84,6 +85,18 @@ class TestcaseSWIC(unittest.TestCase):
             with self.subTest(i=i):
                 self.check(speed, mtu, '/dev/spacewire0', '/dev/spacewire1')
                 self.check(speed, mtu, '/dev/spacewire1', '/dev/spacewire0')
+
+    def test_mtu(self):
+        speed = 8
+        mtu_pool = [2**x for x in range(4, 21)]
+
+        for i in range(self.iters):
+            random.shuffle(mtu_pool)
+            for mtu in mtu_pool:
+                if self.verbose:
+                    print('Iteration {}, mtu={}'.format(i+1, mtu))
+                with self.subTest(iter=i, mtu=mtu):
+                    self.check(speed, mtu, '/dev/spacewire0', '/dev/spacewire1')
 
 
 if __name__ == '__main__':
