@@ -9,3 +9,4 @@ add_executable(swic-xfer swic-xfer.c)
 
 install(TARGETS swic-xfer DESTINATION bin)
 install(PROGRAMS swic-loopback-test.py DESTINATION bin)
+install(PROGRAMS swic-max-speed.sh DESTINATION bin)
