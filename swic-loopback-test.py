@@ -9,6 +9,7 @@ import os
 import random
 import subprocess
 import tempfile
+import time
 import unittest
 
 
@@ -184,6 +185,80 @@ class TestcaseSWIC(unittest.TestCase):
         self.run_procs([['swic', '/dev/spacewire1', '-l', 'up']])
 
         self.check(speed, 1024, '/dev/spacewire0', '/dev/spacewire1')
+
+    def test_link(self):
+        mtu = 16 * 1024
+        speed = 408
+        speed_bps = speed * 1000 * 1000
+        exch_time_s = round((self.filesize * 8 / speed_bps), 3)
+
+        if self.verbose:
+            print('\nFile size {} bytes, mtu {} bytes, speed {} Mbits/s, exchange time {} s'.
+                  format(self.filesize, mtu, speed, exch_time_s))
+
+        input_temp = tempfile.NamedTemporaryFile()
+        input_temp.write(rand_bytes(self.filesize))
+        output_temp = tempfile.NamedTemporaryFile()
+
+        src = '/dev/spacewire0'
+        dst = '/dev/spacewire1'
+
+        self.run_procs([
+            ['swic', src,
+             '-m', str(mtu),
+             '-s', str(speed)],
+            ['swic', dst,
+             '-m', str(mtu),
+             '-s', str(speed)],
+            ])
+
+        for i in range(self.iters):
+            brk_time_s = round(random.random() * exch_time_s, 3)
+
+            if self.verbose:
+                print('Iteration {}, break time {} s'.format(i+1, brk_time_s))
+
+            packets = math.ceil(self.filesize / mtu)
+
+            if random.getrandbits(1):
+                src, dst = dst, src
+
+            if self.verbose:
+                print('Transfering from {} to {}'.format(src, dst))
+
+            proc1 = subprocess.Popen(['swic-xfer',
+                                      src, 's',
+                                      '-f', input_temp.name],
+                                     stderr=subprocess.DEVNULL)
+            proc2 = subprocess.Popen(['swic-xfer',
+                                      dst, 'r',
+                                      '-f', output_temp.name,
+                                      '-n', str(packets)],
+                                     stderr=subprocess.DEVNULL)
+
+            time.sleep(brk_time_s)
+
+            brk_src = random.choice(['/dev/spacewire0', '/dev/spacewire1'])
+
+            if self.verbose:
+                print('Interface {} going down'.format(brk_src))
+            self.run_procs([['swic', brk_src, '-l', 'down']])
+
+            proc1.wait()
+            proc2.wait()
+
+            if self.verbose:
+                print('Interface {} going up'.format(brk_src))
+                self.run_procs([['swic', brk_src, '-l', 'up']])
+
+            if random.getrandbits(1):
+                src, dst = dst, src
+
+            if self.verbose:
+                print('Transfering from {} to {}'.format(src, dst))
+
+            with self.subTest(i=i):
+                self.check(speed, mtu, src, dst)
 
 
 if __name__ == '__main__':
