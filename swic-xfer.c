@@ -145,8 +145,13 @@ static void swic_read(int fd, FILE *file)
 
 static void help(const char *program_name)
 {
-        printf("Synopsys: %s input output [options]\n\n", program_name);
+        printf("Usage: %s device operation [options]\n", program_name);
+        printf("Send/receive a file via SpaceWire interface\n\n");
+        puts("Arguments:");
+        puts("    device    SpaceWire device to be used");
+        puts("    operation Operation: 's' for sending, 'r' for receiving\n");
         puts("Options:");
+        puts("    -f arg    filename");
         puts("    -n arg    number of packets");
         puts("    -s arg    TX speed");
         puts("    -m arg    maximum transmit unit (packet size)");
@@ -154,7 +159,8 @@ static void help(const char *program_name)
 }
 
 int main(int argc, char* argv[]) {
-    const char *filename = NULL, *device = NULL;
+    const char *device = NULL;
+    const char *filename = NULL;
     struct timespec start, stop;
     uint64_t total_time = 0;
     struct stat filestatus;
@@ -162,8 +168,9 @@ int main(int argc, char* argv[]) {
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    while ((opt = getopt(argc, argv, "hn:s:m:v")) != -1) {
+    while ((opt = getopt(argc, argv, "f:hn:s:m:v")) != -1) {
         switch (opt) {
+            case 'f': filename = optarg; break;
             case 'h': help(argv[0]); return EXIT_SUCCESS;
             case 'n': packets = atoi(optarg); break;
             case 's': tx_speed = atoi(optarg); break;
@@ -176,24 +183,21 @@ int main(int argc, char* argv[]) {
     if (argc < optind + 2)
         error(EXIT_FAILURE, 0, "Not enough arguments");
 
-    const char *from = argv[optind];
-    const char *to = argv[optind + 1];
+    if (stat(argv[optind], &filestatus) == -1)
+            error(EXIT_FAILURE, errno, "Failed to get file status");
+    if ((filestatus.st_mode & S_IFMT) == S_IFCHR)
+        device = argv[optind];
+    else
+        error(EXIT_FAILURE, 0, "Unsupported device type");
 
     enum operation_type optype;
 
-    if (stat(from, &filestatus) == -1)
-        error(EXIT_FAILURE, errno, "Failed to get file status");
-
-    if ((filestatus.st_mode & S_IFMT) == S_IFREG) {
-        optype = SWIC_WRITE;
-        device = to;
-        filename = from;
-    } else if ((filestatus.st_mode & S_IFMT) == S_IFCHR) {
-        optype = SWIC_READ;
-        device = from;
-        filename = to;
-    } else
-        error(EXIT_FAILURE, 0, "Unsupported file type");
+    if (!strcmp(argv[optind + 1], "s"))
+         optype = SWIC_WRITE;
+    else if (!strcmp(argv[optind + 1], "r"))
+         optype = SWIC_READ;
+    else
+        error(EXIT_FAILURE, 0, "Incorrect operation type");
 
     FILE *file = (optype == SWIC_WRITE) ? stdin : stdout;
     if (filename) {
@@ -228,11 +232,11 @@ int main(int argc, char* argv[]) {
 
     if (optype == SWIC_WRITE) {
         print_verbose("Transfer mode: transmitter\n");
-        print_verbose("Transmission device: %s\n", to);
+        print_verbose("Transmission device: %s\n", device);
         swic_write(fd, file);
     } else {
         print_verbose("Transfer mode: receiver\n");
-        print_verbose("Receiving device: %s\n", from);
+        print_verbose("Receiving device: %s\n", device);
         swic_read(fd, file);
     }
     clock_gettime(CLOCK_MONOTONIC, &stop);

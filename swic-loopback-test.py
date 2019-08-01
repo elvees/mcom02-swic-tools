@@ -72,13 +72,15 @@ class TestcaseSWIC(unittest.TestCase):
     def check(self, speed, mtu, src, dest):
         packets = math.ceil(self.filesize / mtu)
 
-        proc1 = subprocess.Popen(['swic-xfer', self.inputfile, src,
+        proc1 = subprocess.Popen(['swic-xfer', src, 's',
+                                  '-f', self.inputfile,
                                   '-s', str(speed),
                                   '-m', str(mtu),
                                   '-v'],
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT)
-        proc2 = subprocess.Popen(['swic-xfer', dest, self.outputfile,
+        proc2 = subprocess.Popen(['swic-xfer', dest, 'r',
+                                  '-f', self.outputfile,
                                   '-s', str(speed),
                                   '-n', str(packets),
                                   '-v'],
@@ -154,8 +156,9 @@ class TestcaseSWIC(unittest.TestCase):
 
         input_temp = tempfile.NamedTemporaryFile()
         input_temp.write(os.urandom(filesize))
-        proc = subprocess.Popen(['swic-xfer', input_temp.name,
-                                 '/dev/spacewire0',
+        proc = subprocess.Popen(['swic-xfer',
+                                 '/dev/spacewire0', 's',
+                                 '-f', input_temp.name,
                                  '-s', str(speed),
                                  '-m', str(mtu)])
         self.setnbreak_link('/dev/spacewire1')
