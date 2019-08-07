@@ -62,7 +62,7 @@ static void swic_write(int fd, FILE *file)
         written = write(fd, tx_data, bytes);
         clock_gettime(CLOCK_MONOTONIC, &stop);
 
-        if (written == -ENOLINK)
+        if (errno == ENOLINK)
             error(EXIT_FAILURE, errno, "Link is not set");
         else if (written != bytes)
             error(EXIT_FAILURE, 0, "Failed to write data");
@@ -112,7 +112,7 @@ static void swic_read(int fd, FILE *file)
         elapsed_time += (stop.tv_sec * 1000000 + stop.tv_nsec  / 1000) -
                         (start.tv_sec * 1000000 + start.tv_nsec / 1000);
 
-        if (read_bytes == -ENOLINK)
+        if (errno == ENOLINK)
             error(EXIT_FAILURE, errno, "Link is not set");
         else if (read_bytes == 0)
             error(EXIT_FAILURE, errno, "Failed to read data");
