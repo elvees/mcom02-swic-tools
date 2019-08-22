@@ -260,6 +260,55 @@ class TestcaseSWIC(unittest.TestCase):
             with self.subTest(i=i):
                 self.check(speed, mtu, src, dst)
 
+    def test_full_duplex(self):
+        mtu = 16 * 1024
+        speed = 408
+
+        packets = math.ceil(self.filesize / mtu)
+
+        input_tmp = tempfile.NamedTemporaryFile()
+        input_tmp.write(rand_bytes(self.filesize))
+        output_tmp = tempfile.NamedTemporaryFile()
+
+        self.run_procs([
+            ['swic', '/dev/spacewire0',
+             '-m', str(mtu),
+             '-s', str(speed)],
+            ['swic', '/dev/spacewire1',
+             '-m', str(mtu),
+             '-s', str(speed)],
+            ])
+
+        for i in range(self.iters):
+            if self.verbose:
+                print('Iteration {}'.format(i+1))
+
+            self.run_procs([
+                ['swic-xfer', '/dev/spacewire0', 's',
+                 '-f', self.inputfile,
+                 '-v'],
+                ['swic-xfer', '/dev/spacewire1', 's',
+                 '-f', input_tmp.name,
+                 '-v'],
+                ['swic-xfer', '/dev/spacewire1', 'r',
+                 '-f', self.outputfile,
+                 '-n', str(packets),
+                 '-v'],
+                ['swic-xfer', '/dev/spacewire0', 'r',
+                 '-f', output_tmp.name,
+                 '-n', str(packets),
+                 '-v'],
+                ])
+
+            res1 = filecmp.cmp(self.inputfile, self.outputfile)
+            res2 = filecmp.cmp(input_tmp.name, output_tmp.name)
+            self.assertTrue(res1,
+                            'SWIC0 to SWIC1 files mismatch, speed={}, mtu={}.'.
+                            format(speed, mtu))
+            self.assertTrue(res2,
+                            'SWIC1 to SWIC0 files mismatch, speed={}, mtu={}.'.
+                            format(speed, mtu))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
