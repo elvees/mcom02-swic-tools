@@ -4,6 +4,7 @@
 
 from fcntl import ioctl
 import filecmp
+import itertools
 import math
 import os
 import random
@@ -34,6 +35,13 @@ def _IOW(type, nr, size):
 SWICIOC_SET_LINK = _IOW(ord('w'), 1, 'i')  # define SWICIOC_SET_LINK _IOW('w', 1, int)
 
 
+def rand_bytes(size):
+    # os.urandom() depends on the entropy in the system. This could increase
+    # time of generating of data up to 1 min, which is unacceptable. This
+    # function always generates data in a constant time interval. See PEP524.
+    return bytearray(map(random.getrandbits, itertools.repeat(8, size)))
+
+
 class TestcaseSWIC(unittest.TestCase):
 
     @classmethod
@@ -43,7 +51,7 @@ class TestcaseSWIC(unittest.TestCase):
         cls.inputfile = '/tmp/input.bin'
         cls.filesize = int(os.environ.get('INPUT_FILE_SIZE', 1024*1024))
         with open(cls.inputfile, 'wb') as fout:
-            fout.write(os.urandom(cls.filesize))
+            fout.write(rand_bytes(cls.filesize))
         cls.outputfile = '/tmp/output.bin'
 
         cls.iters = int(os.environ.get('ITERS', 5))
@@ -155,7 +163,7 @@ class TestcaseSWIC(unittest.TestCase):
         speed = 8
 
         input_temp = tempfile.NamedTemporaryFile()
-        input_temp.write(os.urandom(filesize))
+        input_temp.write(rand_bytes(filesize))
         proc = subprocess.Popen(['swic-xfer',
                                  '/dev/spacewire0', 's',
                                  '-f', input_temp.name,
