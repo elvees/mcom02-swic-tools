@@ -2,37 +2,14 @@
 
 # Copyright 2019 RnD Center "ELVEES", JSC
 
-from fcntl import ioctl
 import filecmp
 import itertools
 import math
 import os
 import random
-import struct
 import subprocess
 import tempfile
 import unittest
-
-_IOC_TYPEBITS = 8
-_IOC_NRBITS = 8
-_IOC_NRSHIFT = 0
-_IOC_SIZEBITS = 14
-_IOC_WRITE = 1
-_IOC_TYPESHIFT = _IOC_NRSHIFT + _IOC_NRBITS
-_IOC_SIZESHIFT = _IOC_TYPESHIFT + _IOC_TYPEBITS
-_IOC_DIRSHIFT = _IOC_SIZESHIFT + _IOC_SIZEBITS
-
-
-def _IOC(dir, type, nr, size):
-    return int((dir << _IOC_DIRSHIFT) | (type << _IOC_TYPESHIFT) |
-               (nr << _IOC_NRSHIFT) | (size << _IOC_SIZESHIFT))
-
-
-def _IOW(type, nr, size):
-    return _IOC(_IOC_WRITE, type, nr, struct.calcsize(size))
-
-
-SWICIOC_SET_LINK = _IOW(ord('w'), 1, 'i')  # define SWICIOC_SET_LINK _IOW('w', 1, int)
 
 
 def rand_bytes(size):
@@ -55,6 +32,7 @@ class TestcaseSWIC(unittest.TestCase):
         cls.outputfile = '/tmp/output.bin'
 
         cls.iters = int(os.environ.get('ITERS', 5))
+        cls.timeout = int(os.environ.get('TIMEOUT', 10))
         cls.verbose = int(os.environ.get('VERBOSE', 0))
 
     @classmethod
@@ -62,7 +40,18 @@ class TestcaseSWIC(unittest.TestCase):
         os.remove(cls.inputfile)
         super().tearDownClass()
 
+    def setUp(self):
+        self.run_procs([
+            ['swic', '/dev/spacewire0', '-l', 'up'],
+            ['swic', '/dev/spacewire1', '-l', 'up'],
+            ])
+
     def tearDown(self):
+        self.run_procs([
+            ['swic', '/dev/spacewire0', '-l', 'down'],
+            ['swic', '/dev/spacewire1', '-l', 'down'],
+            ])
+
         try:
             os.remove(self.outputfile)
         except OSError:
@@ -77,40 +66,56 @@ class TestcaseSWIC(unittest.TestCase):
 
         return 48 * (speed - 1) + 72
 
-    def check(self, speed, mtu, src, dest):
-        packets = math.ceil(self.filesize / mtu)
+    def run_procs(self, procs):
+        stdouts = []
+        process = []
 
-        proc1 = subprocess.Popen(['swic-xfer', src, 's',
-                                  '-f', self.inputfile,
-                                  '-s', str(speed),
-                                  '-m', str(mtu),
-                                  '-v'],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
-        proc2 = subprocess.Popen(['swic-xfer', dest, 'r',
-                                  '-f', self.outputfile,
-                                  '-s', str(speed),
-                                  '-n', str(packets),
-                                  '-v'],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
+        for i, proc in enumerate(procs):
+            process.append(subprocess.Popen(proc,
+                                            stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT))
 
-        stdouts = [None, None]
+        for i, proc in enumerate(process):
+            try:
+                stdouts.append(proc.communicate(timeout=self.timeout)[0])
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                stdouts.append(proc.communicate()[0])
 
-        for i, proc in enumerate([proc1, proc2]):
-            stdouts[i], _ = proc.communicate()
-
-        for proc, stdout in zip((proc1, proc2), stdouts):
+        for proc, stdout in zip(process, stdouts):
             self.assertFalse(proc.returncode,
                              'Non zero return code, stdout/stderr: {}'.format(
-                                                           stdout.decode('UTF-8')))
+                                 stdout.decode('UTF-8')))
+
+    def check(self, speed, mtu, src, dst):
+        packets = math.ceil(self.filesize / mtu)
+
+        self.run_procs([
+            ['swic', src,
+             '-m', str(mtu),
+             '-s', str(speed),
+             '-l', 'reset'],
+            ['swic', dst,
+             '-s', str(speed),
+             '-l', 'reset'],
+            ])
+
+        self.run_procs([
+            ['swic-xfer', src, 's',
+             '-f', self.inputfile,
+             '-v'],
+            ['swic-xfer', dst, 'r',
+             '-f', self.outputfile,
+             '-n', str(packets),
+             '-v'],
+            ])
 
         result = filecmp.cmp(self.inputfile, self.outputfile)
         self.assertTrue(result,
                         'Input and output files mismatch, speed={}, mtu={}.'.format(speed, mtu))
 
     def test_sanity(self):
-        speed = 8
+        speed = 408
         mtu = 16*1024
 
         for i in range(self.iters):
@@ -121,7 +126,7 @@ class TestcaseSWIC(unittest.TestCase):
                 self.check(speed, mtu, '/dev/spacewire1', '/dev/spacewire0')
 
     def test_mtu(self):
-        speed = 8
+        speed = 408
         mtu_pool = [2**x for x in range(4, 21)]
 
         for i in range(self.iters):
@@ -141,18 +146,6 @@ class TestcaseSWIC(unittest.TestCase):
         while rx_status & mask != value:
             rx_status = self.read32(0x38084004)
 
-    def setnbreak_link(self, device):
-        with open(device, 'w') as handle:
-            ioctl(handle, SWICIOC_SET_LINK, 1)
-
-            # Waiting for set link
-            self.wait_event(0xF0, 0xA0)
-
-            # Waiting for fill RX FIFO
-            self.wait_event(0x100, 0x100)
-
-            ioctl(handle, SWICIOC_SET_LINK, 0)
-
     def test_flush_fifo(self):
         rxfifo_size = 384
         desc_size = 16 * 1024
@@ -160,19 +153,35 @@ class TestcaseSWIC(unittest.TestCase):
         rxring_size = desc_size * num_descs
         filesize = rxring_size + rxfifo_size
         mtu = filesize / 2
-        speed = 8
+        speed = 408
+
+        if self.verbose:
+            print('\nFile size {} bytes, mtu {} bytes, speed {} Mbits/s'.
+                  format(filesize, mtu, speed))
 
         input_temp = tempfile.NamedTemporaryFile()
         input_temp.write(rand_bytes(filesize))
+
+        self.run_procs([['swic',
+                         '/dev/spacewire0',
+                         '-m', str(mtu),
+                         '-s', str(speed)]])
+
         proc = subprocess.Popen(['swic-xfer',
                                  '/dev/spacewire0', 's',
-                                 '-f', input_temp.name,
-                                 '-s', str(speed),
-                                 '-m', str(mtu)])
-        self.setnbreak_link('/dev/spacewire1')
+                                 '-f', input_temp.name])
+
+        if self.verbose:
+            print('\nWaiting for fill RX FIFO')
+        self.wait_event(0x100, 0x100)
+
+        self.run_procs([['swic', '/dev/spacewire1', '-l', 'down']])
 
         proc.kill()
         proc.wait()
+
+        self.run_procs([['swic', '/dev/spacewire0', '-l', 'up']])
+        self.run_procs([['swic', '/dev/spacewire1', '-l', 'up']])
 
         self.check(speed, 1024, '/dev/spacewire0', '/dev/spacewire1')
 

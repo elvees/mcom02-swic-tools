@@ -25,9 +25,6 @@
 
 struct elvees_swic_speed speed;
 
-int tx_speed = TX_SPEED_408;
-int rx_speed;
-int mtu = 16 * 1024;
 int packets = -1;
 int verbose = 0;
 
@@ -42,13 +39,14 @@ static void swic_write(int fd, FILE *file)
     struct timespec start, stop;
     uint64_t elapsed_time = 0;
     size_t bytes;
+    int mtu;
 
-    if (ioctl(fd, SWICIOC_SET_MTU, mtu))
-        error(EXIT_FAILURE, errno, "Failed to set MTU");
+    if (ioctl(fd, SWICIOC_GET_MTU, &mtu))
+        error(EXIT_FAILURE, errno, "%s: Failed to get MTU", __func__);
 
     void *tx_data = malloc(mtu);
     if (!tx_data)
-        error(EXIT_FAILURE, 0, "Failed to allocate memory");
+        error(EXIT_FAILURE, 0, "%s: Failed to allocate memory", __func__);
 
     while (!feof(file)) {
         bytes = fread(tx_data, 1, mtu, file);
@@ -63,9 +61,9 @@ static void swic_write(int fd, FILE *file)
         clock_gettime(CLOCK_MONOTONIC, &stop);
 
         if (errno == ENOLINK)
-            error(EXIT_FAILURE, errno, "Link is not set");
+            error(EXIT_FAILURE, errno, "%s: Link is not set", __func__);
         else if (written != bytes)
-            error(EXIT_FAILURE, 0, "Failed to write data");
+            error(EXIT_FAILURE, 0, "Failed to write data to device");
 
         transmitted += written;
 
@@ -77,7 +75,7 @@ static void swic_write(int fd, FILE *file)
     }
 
     if (ioctl(fd, SWICIOC_GET_SPEED, &speed))
-        error(EXIT_FAILURE, errno, "Failed to get RX speed");
+        error(EXIT_FAILURE, errno, "%s: Failed to get device speed", __func__);
 
     print_verbose("Tranmitter TX speed: %.1f Mbit/s\n", speed.tx / 1000.0);
     print_verbose("Tranmitter RX speed: %.1f Mbit/s\n", speed.rx / 1000.0);
@@ -100,7 +98,7 @@ static void swic_read(int fd, FILE *file)
 
     void *rx_data = malloc(ELVEES_SWIC_MAX_PACKET_SIZE);
     if (!rx_data)
-        error(EXIT_FAILURE, 0, "Failed to allocate memory");
+        error(EXIT_FAILURE, 0, "%s: Failed to allocate memory", __func__);
 
     while (1) {
         clock_gettime(CLOCK_MONOTONIC, &start);
@@ -113,22 +111,22 @@ static void swic_read(int fd, FILE *file)
                         (start.tv_sec * 1000000 + start.tv_nsec / 1000);
 
         if (errno == ENOLINK)
-            error(EXIT_FAILURE, errno, "Link is not set");
+            error(EXIT_FAILURE, errno, "%s: Link is not set", __func__);
         else if (read_bytes == 0)
-            error(EXIT_FAILURE, errno, "Failed to read data");
+            error(EXIT_FAILURE, errno, "Failed to read data from device");
 
         written = fwrite(rx_data, 1, read_bytes, file);
         fflush(file);
 
         if (written != read_bytes)
-            error(EXIT_FAILURE, errno, "Failed to write data");
+            error(EXIT_FAILURE, errno, "Failed to write data to file");
 
         if (packets != -1 && --packets == 0)
             break;
     }
 
     if (ioctl(fd, SWICIOC_GET_SPEED, &speed))
-        error(EXIT_FAILURE, errno, "Failed to get RX speed");
+        error(EXIT_FAILURE, errno, "%s: Failed to get device speed", __func__);
 
     print_verbose("Receiver TX speed: %.1f Mbit/s\n", speed.tx / 1000.0);
     print_verbose("Receiver RX speed: %.1f Mbit/s\n", speed.rx / 1000.0);
@@ -136,9 +134,6 @@ static void swic_read(int fd, FILE *file)
     print_verbose("Received elapsed time: %f s\n", (double)elapsed_time / 1000000);
     print_verbose("Throughput of receive: %f Mbit/s\n",
                   8 * (double)sum_bytes / (double)elapsed_time);
-
-    if (ioctl(fd, SWICIOC_SET_LINK, 0))
-        error(EXIT_FAILURE, errno, "Failed to disconnect the link");
 
     free(rx_data);
 }
@@ -153,8 +148,6 @@ static void help(const char *program_name)
         puts("Options:");
         puts("    -f arg    filename");
         puts("    -n arg    number of packets");
-        puts("    -s arg    TX speed");
-        puts("    -m arg    maximum transmit unit (packet size)");
         puts("    -v        print verbose");
 }
 
@@ -168,13 +161,11 @@ int main(int argc, char* argv[]) {
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    while ((opt = getopt(argc, argv, "f:hn:s:m:v")) != -1) {
+    while ((opt = getopt(argc, argv, "f:hn:v")) != -1) {
         switch (opt) {
             case 'f': filename = optarg; break;
             case 'h': help(argv[0]); return EXIT_SUCCESS;
             case 'n': packets = atoi(optarg); break;
-            case 's': tx_speed = atoi(optarg); break;
-            case 'm': mtu = atoi(optarg); break;
             case 'v': verbose++; break;
             default: error(EXIT_FAILURE, 0, "Try %s -h for help.", argv[0]);
         }
@@ -190,7 +181,7 @@ int main(int argc, char* argv[]) {
     else
         error(EXIT_FAILURE, 0, "Unsupported device type");
 
-    enum operation_type optype;
+    enum operation_type optype = SWIC_WRITE;
 
     if (!strcmp(argv[optind + 1], "s"))
          optype = SWIC_WRITE;
@@ -210,25 +201,6 @@ int main(int argc, char* argv[]) {
     int fd = open(device, O_RDWR);
     if (fd < 0)
         error(EXIT_FAILURE, errno, "Failed to open %s device", device);
-
-    if (ioctl(fd, SWICIOC_SET_LINK, 1))
-        error(EXIT_FAILURE, errno, "Failed to set link");
-
-    enum swic_link_state link_status;
-
-    print_verbose("Waiting for link...\n");
-    while (1) {
-        if (ioctl(fd, SWICIOC_GET_LINK_STATE, &link_status))
-            error(EXIT_FAILURE, errno, "Failed to get link state");
-        if (link_status == LINK_RUN) {
-            print_verbose("Link is set\n");
-            break;
-        }
-        usleep(10);
-    }
-
-    if (ioctl(fd, SWICIOC_SET_TX_SPEED, tx_speed))
-        error(EXIT_FAILURE, errno, "Failed to set TX speed");
 
     if (optype == SWIC_WRITE) {
         print_verbose("Transfer mode: transmitter\n");

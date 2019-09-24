@@ -1,5 +1,7 @@
-# capturing video from a video sensor OV5647, encoding and
-# transmitting it to another Salute-EL24OM module using Spacewire
+# up link of the SpaceWire interface
+# capturing video from a video sensor OV5647 and encoding it
+# transmitting encoded video to another Salute-EL24OM module using Spacewire
+# down link of the SpaceWire interface
 
 [Unit]
 Description=SpaceWire video demonstration transmitter
@@ -11,9 +13,12 @@ After=dev-v4l-by\x2dpath-platform\x2d37100000.codec\x2dvideo\x2dindex0.device
 After=dev-v4l-by\x2dpath-platform\x2d37200000.vinc\x2dvideo\x2dindex0.device
 
 [Service]
-ExecStart=/bin/bash -c 'cap-enc -s 1024x768 -f1 /dev/v4l/by-path/platform-37200000.vinc-video-index0 \
+ExecStart=/bin/bash -c 'swic /dev/spacewire0 -s 408 -l up && \
+                        cap-enc -s 1024x768 -f1 /dev/v4l/by-path/platform-37200000.vinc-video-index0 \
                         /dev/v4l/by-path/platform-37100000.codec-video-index0 | \
-                        swic-xfer /dev/spacewire0 s -s 8'
+                        swic-xfer /dev/spacewire0 s'
+
+ExecStopPost=swic /dev/spacewire0 -l down
 
 [Install]
 WantedBy=multi-user.target
