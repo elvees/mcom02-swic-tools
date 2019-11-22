@@ -156,12 +156,15 @@ int main(int argc, char* argv[])
     if (arguments.info) {
         enum swic_link_state link_state;
         struct elvees_swic_speed speed;
+        struct elvees_swic_stats stats;
         unsigned long mtu;
 
         if (ioctl(fd, SWICIOC_GET_LINK_STATE, &link_state))
             error(EXIT_FAILURE, errno, "Failed to get link state");
         if (ioctl(fd, SWICIOC_GET_SPEED, &speed))
             error(EXIT_FAILURE, errno, "Failed to get link speed");
+        if (ioctl(fd, SWICIOC_GET_STATS, &stats))
+            error(EXIT_FAILURE, errno, "Failed to get link statistics");
         if (ioctl(fd, SWICIOC_GET_MTU, &mtu))
             error(EXIT_FAILURE, errno, "Failed to get link mtu");
 
@@ -177,6 +180,14 @@ int main(int argc, char* argv[])
         printf("\t\t\tTX speed: %d\n", speed.tx);
         printf("\t\t\tRX speed: %d\n", speed.rx);
         printf("\t\t\tMTU: %lu\n", mtu);
+        printf("\t\t\tTX packets %lu  bytes %llu\n", stats.tx_packets,
+               stats.tx_data_bytes);
+        printf("\t\t\tRX packets %lu  bytes %llu\n", stats.rx_eop_packets,
+               stats.rx_data_bytes);
+        printf("\t\t\tEEP %lu  parity %lu  escape %lu\n",
+               stats.rx_eep_packets, stats.parity_err, stats.escape_err);
+        printf("\t\t\tdisconnect %lu  credit %lu\n",
+               stats.dc_err, stats.credit_err);
 
         return 0;
     }
