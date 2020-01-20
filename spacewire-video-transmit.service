@@ -13,12 +13,17 @@ After=dev-v4l-by\x2dpath-platform\x2d37100000.codec\x2dvideo\x2dindex0.device
 After=dev-v4l-by\x2dpath-platform\x2d37200000.vinc\x2dvideo\x2dindex0.device
 
 [Service]
-ExecStart=/bin/bash -c 'swic /dev/spacewire0 -s 408 -l up && \
-                        cap-enc -s 1024x768 -f1 /dev/v4l/by-path/platform-37200000.vinc-video-index0 \
-                        /dev/v4l/by-path/platform-37100000.codec-video-index0 | \
-                        swic-xfer /dev/spacewire0 s'
+ExecStartPre=swic /dev/spacewire0 -s 408 -l up
+
+ExecStart=bash -c 'sleep 5; \
+          swic-xfer /dev/spacewire0 s < <(cap-enc -s 1024x768 -f1 \
+          /dev/v4l/by-path/platform-37200000.vinc-video-index0 \
+          /dev/v4l/by-path/platform-37100000.codec-video-index0)'
 
 ExecStopPost=swic /dev/spacewire0 -l down
+
+Restart=always
+RestartSec=3s
 
 [Install]
 WantedBy=multi-user.target

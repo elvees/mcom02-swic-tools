@@ -15,14 +15,20 @@ After=dev-spacewire0.device
 After=dev-fb0.device
 
 [Service]
-ExecStart=/bin/bash -c 'echo -e "\033[9;0]" > /dev/tty0; \
-                        echo 0 > /sys/class/vtconsole/vtcon1/bind; \
-                        swic /dev/spacewire0 -s 408 -l up && \
-                        swic-xfer /dev/spacewire0 r | ffmpeg -i pipe: -pix_fmt bgra -f fbdev /dev/fb0'
+ExecStartPre=swic /dev/spacewire0 -s 408 -l up
 
-ExecStopPost=/bin/bash -c 'echo -e "\033[9;10]" > /dev/tty0; \
-                           echo 1 > /sys/class/vtconsole/vtcon1/bind; \
-                           swic /dev/spacewire0 -l down'
+ExecStart=bash -c 'set -eo pipefail; \
+                   echo -e "\033[9;0]" > /dev/tty0; \
+                   echo 0 > /sys/class/vtconsole/vtcon1/bind; \
+                   sleep 5; \
+                   swic-xfer /dev/spacewire0 r | ffmpeg -i pipe: -pix_fmt bgra -f fbdev /dev/fb0'
+
+ExecStopPost=bash -c 'echo -e "\033[9;10]" > /dev/tty0; \
+                      echo 1 > /sys/class/vtconsole/vtcon1/bind; \
+                      swic /dev/spacewire0 -l down'
+
+Restart=always
+RestartSec=3s
 
 [Install]
 WantedBy=multi-user.target
