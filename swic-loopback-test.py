@@ -249,7 +249,7 @@ class TestcaseSWIC(unittest.TestCase):
 
             if self.verbose:
                 print('Interface {} going up'.format(brk_src))
-                self.run_procs([['swic', brk_src, '-l', 'up']])
+            self.run_procs([['swic', brk_src, '-l', 'up']])
 
             if random.getrandbits(1):
                 src, dst = dst, src
