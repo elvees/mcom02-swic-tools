@@ -7,6 +7,7 @@ import itertools
 import math
 import os
 import random
+import re
 import subprocess
 import tempfile
 import time
@@ -18,6 +19,20 @@ def rand_bytes(size):
     # time of generating of data up to 1 min, which is unacceptable. This
     # function always generates data in a constant time interval. See PEP524.
     return bytearray(map(random.getrandbits, itertools.repeat(8, size)))
+
+
+def stats_get(dev):
+    regex = (r"TX packets\s(?P<tx_pckt>\d*)\s*bytes\s(?P<tx_bytes>\d*)\s*"
+             r"RX packets\s(?P<rx_pckt>\d*)\s*bytes\s(?P<rx_bytes>\d*)\s*"
+             r"EEP\s(?P<eep>\d*)\s*parity\s(?P<parity>\d*)\s*"
+             r"escape\s(?P<esc>\d*)\s*disconnect errors\s(?P<discon>\d*)\s*"
+             r"credit\s(?P<credit>\d*)")
+
+    proc = subprocess.Popen(['swic', dev], stdout=subprocess.PIPE)
+    out = proc.communicate()[0]
+    match = re.search(regex, out.decode("utf-8"), re.MULTILINE)
+
+    return match
 
 
 class TestcaseSWIC(unittest.TestCase):
@@ -36,8 +51,25 @@ class TestcaseSWIC(unittest.TestCase):
         cls.timeout = int(os.environ.get('TIMEOUT', 10))
         cls.verbose = int(os.environ.get('VERBOSE', 0))
 
+        # From theoretical analysis and formula calculation
+        # Bit error ratio is less than 1.034x10-13 when SpaceWire
+        # bus works with 200Mbps bit stream for 24h
+        cls.ber_threshold = 1.034e-13
+        cls.duration = time.time()
+
+        proc1 = subprocess.Popen(['swic', '/dev/spacewire0', '-r'],
+                                 stderr=subprocess.DEVNULL)
+        proc2 = subprocess.Popen(['swic', '/dev/spacewire1', '-r'],
+                                 stderr=subprocess.DEVNULL)
+        proc1.wait()
+        proc2.wait()
+
     @classmethod
     def tearDownClass(cls):
+        cls.duration = time.time() - cls.duration
+        cls.check_ber(cls, '/dev/spacewire0')
+        cls.check_ber(cls, '/dev/spacewire1')
+
         os.remove(cls.inputfile)
         super().tearDownClass()
 
@@ -87,6 +119,33 @@ class TestcaseSWIC(unittest.TestCase):
             self.assertFalse(proc.returncode,
                              'Non zero return code, stdout/stderr: {}'.format(
                                  stdout.decode('UTF-8')))
+
+    def check_ber(self, dev):
+        m = stats_get(dev)
+
+        rx_bytes = m.group('rx_bytes')
+        parity = m.group('parity')
+        esc = m.group('esc')
+        credit = m.group('credit')
+        errors = int(parity) + int(esc) + int(credit)
+
+        if self.verbose:
+            print('BER threshold {:10.3e}'.format(self.ber_threshold))
+            print('Device {}: RX bytes {}'.format(dev, rx_bytes))
+            print('Errors: Parity {}, Escape {}, Credit {}'.format(
+                  parity, esc, credit))
+            print('Duration: {}'.format(self.duration))
+
+        ber = float(errors) / float(rx_bytes)
+        # 24h * 60min * 60sec = 86400sec
+        ber *= 86400 / self.duration
+
+        if self.verbose:
+            print('Current BER {:10.3e}'.format(ber))
+
+        if ber > self.ber_threshold:
+            print('Device {}: Bit error ratio exceeds threshold, BER={:10.3e}, current={:10.3e}.'.
+                  format(dev, self.ber_threshold, ber))
 
     def check(self, speed, mtu, src, dst):
         packets = math.ceil(self.filesize / mtu)

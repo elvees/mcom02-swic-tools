@@ -33,6 +33,7 @@ static struct argp_option options[] = {
         "'up' option allows and runs link setting\n"
         "'down' option disallows link setting and resets link" },
     {"flush", 'f', 0,         0, "Flush swic controller FIFO buffers" },
+    {"reset", 'r', 0,         0, "Reset statistics" },
     {"mtu",   'm', "MTU",     0, "Set Link interface mtu to MTU" },
     {"speed", 's', "SPEED",   0,
         "Set Link interface speed to SPEED\n"
@@ -46,6 +47,7 @@ struct arguments {
     int info;
     int link;
     int flush;
+    int reset;
     int mtu;
     int tx_speed;
 };
@@ -104,6 +106,8 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
         break;
     case 'f':
         arguments->flush = 1;
+    case 'r':
+        arguments->reset = 1;
         arguments->info = 0;
         break;
     case 'm':
@@ -144,6 +148,7 @@ int main(int argc, char* argv[])
     arguments.info = 1;
     arguments.link = -1;
     arguments.flush = -1;
+    arguments.reset = -1;
     arguments.mtu = -1;
     arguments.tx_speed = -1;
 
@@ -210,6 +215,11 @@ int main(int argc, char* argv[])
     if (arguments.flush != -1) {
         if (ioctl(fd, SWICIOC_FLUSH, 0))
             error(EXIT_FAILURE, errno, "Failed to flush");
+    }
+
+    if (arguments.reset != -1) {
+        if (ioctl(fd, SWICIOC_RESET_STATS, 0))
+            error(EXIT_FAILURE, errno, "Failed to reset statistics");
     }
 
     return 0;
