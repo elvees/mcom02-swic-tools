@@ -7,9 +7,11 @@ set(CMAKE_C_STANDARD_REQUIRED TRUE)
 
 add_executable(swic-xfer swic-xfer.c)
 add_executable(swic swic.c)
+add_executable(swic-lvds-test swic-lvds-test.c)
 
 install(TARGETS swic-xfer
                 swic
+                swic-lvds-test
         DESTINATION bin)
 install(PROGRAMS swic-loopback-test.py DESTINATION bin)
 install(PROGRAMS swic-max-speed.sh DESTINATION bin)

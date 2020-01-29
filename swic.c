@@ -207,6 +207,11 @@ int main(int argc, char* argv[])
             error(EXIT_FAILURE, errno, "Failed to set speed");
     }
 
+    if (arguments.reset != -1) {
+        if (ioctl(fd, SWICIOC_RESET_STATS, 0))
+            error(EXIT_FAILURE, errno, "Failed to reset statistics");
+    }
+
     if (arguments.link == 0 || arguments.link == 1) {
         if (ioctl(fd, SWICIOC_SET_LINK, arguments.link))
             error(EXIT_FAILURE, errno, "Failed to link %s",
@@ -215,11 +220,6 @@ int main(int argc, char* argv[])
     if (arguments.flush != -1) {
         if (ioctl(fd, SWICIOC_FLUSH, 0))
             error(EXIT_FAILURE, errno, "Failed to flush");
-    }
-
-    if (arguments.reset != -1) {
-        if (ioctl(fd, SWICIOC_RESET_STATS, 0))
-            error(EXIT_FAILURE, errno, "Failed to reset statistics");
     }
 
     return 0;
