@@ -31,8 +31,8 @@ static char args_doc[] = "DEVICE";
 static struct argp_option options[] = {
     {"link",  'l', "COMMAND", 0,
         "'up' option allows and runs link setting\n"
-        "'down' option disallows link setting and resets link\n"
-        "'reset' option resets link, link FIFO buffers" },
+        "'down' option disallows link setting and resets link" },
+    {"flush", 'f', 0,         0, "Flush swic controller FIFO buffers" },
     {"mtu",   'm', "MTU",     0, "Set Link interface mtu to MTU" },
     {"speed", 's', "SPEED",   0,
         "Set Link interface speed to SPEED\n"
@@ -45,6 +45,7 @@ struct arguments {
     char *device;
     int info;
     int link;
+    int flush;
     int mtu;
     int tx_speed;
 };
@@ -97,10 +98,12 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
             arguments->link = 1;
         } else if (strcmp(arg, "down") == 0) {
             arguments->link = 0;
-        } else if (strcmp(arg, "reset") == 0) {
-            arguments->link = 2;
         } else
             argp_usage(state);
+        arguments->info = 0;
+        break;
+    case 'f':
+        arguments->flush = 1;
         arguments->info = 0;
         break;
     case 'm':
@@ -140,6 +143,7 @@ int main(int argc, char* argv[])
     arguments.device = NULL;
     arguments.info = 1;
     arguments.link = -1;
+    arguments.flush = -1;
     arguments.mtu = -1;
     arguments.tx_speed = -1;
 
@@ -192,9 +196,9 @@ int main(int argc, char* argv[])
             error(EXIT_FAILURE, errno, "Failed to link %s",
                   link ? "up" : "down");
     }
-    if (arguments.link == 2) {
-        if (ioctl(fd, SWICIOC_RESET, 0))
-            error(EXIT_FAILURE, errno, "Failed to reset");
+    if (arguments.flush != -1) {
+        if (ioctl(fd, SWICIOC_FLUSH, 0))
+            error(EXIT_FAILURE, errno, "Failed to flush");
     }
 
     return 0;

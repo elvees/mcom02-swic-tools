@@ -95,10 +95,10 @@ class TestcaseSWIC(unittest.TestCase):
             ['swic', src,
              '-m', str(mtu),
              '-s', str(speed),
-             '-l', 'reset'],
+             '-f'],
             ['swic', dst,
              '-s', str(speed),
-             '-l', 'reset'],
+             '-f'],
             ])
 
         self.run_procs([
