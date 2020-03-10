@@ -25,7 +25,7 @@ def stats_get(dev):
     regex = (r"TX packets\s(?P<tx_pckt>\d*)\s*bytes\s(?P<tx_bytes>\d*)\s*"
              r"RX packets\s(?P<rx_pckt>\d*)\s*bytes\s(?P<rx_bytes>\d*)\s*"
              r"EEP\s(?P<eep>\d*)\s*parity\s(?P<parity>\d*)\s*"
-             r"escape\s(?P<esc>\d*)\s*disconnect errors\s(?P<discon>\d*)\s*"
+             r"escape\s(?P<esc>\d*)\s*disconnect\s(?P<discon>\d*)\s*"
              r"credit\s(?P<credit>\d*)")
 
     proc = subprocess.Popen(['swic', dev], stdout=subprocess.PIPE)
