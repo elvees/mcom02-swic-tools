@@ -136,7 +136,10 @@ class TestcaseSWIC(unittest.TestCase):
                   parity, esc, credit))
             print('Duration: {}'.format(self.duration))
 
-        ber = float(errors) / float(rx_bytes)
+        if rx_bytes > 0:
+            ber = float(errors) / float(rx_bytes)
+        else:
+            ber = 0
         # 24h * 60min * 60sec = 86400sec
         ber *= 86400 / self.duration
 
