@@ -123,11 +123,11 @@ class TestcaseSWIC(unittest.TestCase):
     def check_ber(self, dev):
         m = stats_get(dev)
 
-        rx_bytes = m.group('rx_bytes')
-        parity = m.group('parity')
-        esc = m.group('esc')
-        credit = m.group('credit')
-        errors = int(parity) + int(esc) + int(credit)
+        rx_bytes = int(m.group('rx_bytes'))
+        parity = int(m.group('parity'))
+        esc = int(m.group('esc'))
+        credit = int(m.group('credit'))
+        errors = parity + esc + credit
 
         if self.verbose:
             print('BER threshold {:10.3e}'.format(self.ber_threshold))
@@ -137,7 +137,7 @@ class TestcaseSWIC(unittest.TestCase):
             print('Duration: {}'.format(self.duration))
 
         if rx_bytes > 0:
-            ber = float(errors) / float(rx_bytes)
+            ber = errors / rx_bytes
         else:
             ber = 0
         # 24h * 60min * 60sec = 86400sec
