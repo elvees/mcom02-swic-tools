@@ -48,6 +48,7 @@ class TestcaseSWIC(unittest.TestCase):
         cls.outputfile = '/tmp/output.bin'
 
         cls.iters = int(os.environ.get('ITERS', 5))
+        cls.speed = int(os.environ.get('SPEED', 408))
         cls.timeout = int(os.environ.get('TIMEOUT', 10))
         cls.verbose = int(os.environ.get('VERBOSE', 0))
 
@@ -178,18 +179,16 @@ class TestcaseSWIC(unittest.TestCase):
                         'Input and output files mismatch, speed={}, mtu={}.'.format(speed, mtu))
 
     def test_sanity(self):
-        speed = 408
         mtu = 16*1024
 
         for i in range(self.iters):
             if self.verbose:
                 print('Iteration {}'.format(i+1))
             with self.subTest(i=i):
-                self.check(speed, mtu, '/dev/spacewire0', '/dev/spacewire1')
-                self.check(speed, mtu, '/dev/spacewire1', '/dev/spacewire0')
+                self.check(self.speed, mtu, '/dev/spacewire0', '/dev/spacewire1')
+                self.check(self.speed, mtu, '/dev/spacewire1', '/dev/spacewire0')
 
     def test_mtu(self):
-        speed = 408
         mtu_pool = [2**x for x in range(4, 21)]
 
         for i in range(self.iters):
@@ -198,7 +197,7 @@ class TestcaseSWIC(unittest.TestCase):
                 if self.verbose:
                     print('Iteration {}, mtu={}'.format(i+1, mtu))
                 with self.subTest(iter=i, mtu=mtu):
-                    self.check(speed, mtu, '/dev/spacewire0', '/dev/spacewire1')
+                    self.check(self.speed, mtu, '/dev/spacewire0', '/dev/spacewire1')
 
     def read32(self, addr):
         return int((subprocess.check_output(['devmem',
@@ -216,11 +215,10 @@ class TestcaseSWIC(unittest.TestCase):
         rxring_size = desc_size * num_descs
         filesize = rxring_size + rxfifo_size
         mtu = filesize / 2
-        speed = 408
 
         if self.verbose:
             print('\nFile size {} bytes, mtu {} bytes, speed {} Mbits/s'.
-                  format(filesize, mtu, speed))
+                  format(filesize, mtu, self.speed))
 
         input_temp = tempfile.NamedTemporaryFile()
         input_temp.write(rand_bytes(filesize))
@@ -228,7 +226,7 @@ class TestcaseSWIC(unittest.TestCase):
         self.run_procs([['swic',
                          '/dev/spacewire0',
                          '-m', str(mtu),
-                         '-s', str(speed)]])
+                         '-s', str(self.speed)]])
 
         proc = subprocess.Popen(['swic-xfer',
                                  '/dev/spacewire0', 's',
@@ -246,17 +244,16 @@ class TestcaseSWIC(unittest.TestCase):
         self.run_procs([['swic', '/dev/spacewire0', '-l', 'up']])
         self.run_procs([['swic', '/dev/spacewire1', '-l', 'up']])
 
-        self.check(speed, 1024, '/dev/spacewire0', '/dev/spacewire1')
+        self.check(self.speed, 1024, '/dev/spacewire0', '/dev/spacewire1')
 
     def test_link(self):
         mtu = 16 * 1024
-        speed = 408
-        speed_bps = speed * 1000 * 1000
+        speed_bps = self.speed * 1000 * 1000
         exch_time_s = round((self.filesize * 8 / speed_bps), 3)
 
         if self.verbose:
             print('\nFile size {} bytes, mtu {} bytes, speed {} Mbits/s, exchange time {} s'.
-                  format(self.filesize, mtu, speed, exch_time_s))
+                  format(self.filesize, mtu, self.speed, exch_time_s))
 
         input_temp = tempfile.NamedTemporaryFile()
         input_temp.write(rand_bytes(self.filesize))
@@ -268,10 +265,10 @@ class TestcaseSWIC(unittest.TestCase):
         self.run_procs([
             ['swic', src,
              '-m', str(mtu),
-             '-s', str(speed)],
+             '-s', str(self.speed)],
             ['swic', dst,
              '-m', str(mtu),
-             '-s', str(speed)],
+             '-s', str(self.speed)],
             ])
 
         for i in range(self.iters):
@@ -320,11 +317,10 @@ class TestcaseSWIC(unittest.TestCase):
                 print('Transfering from {} to {}'.format(src, dst))
 
             with self.subTest(i=i):
-                self.check(speed, mtu, src, dst)
+                self.check(self.speed, mtu, src, dst)
 
     def test_full_duplex(self):
         mtu = 16 * 1024
-        speed = 408
 
         packets = math.ceil(self.filesize / mtu)
 
@@ -335,10 +331,10 @@ class TestcaseSWIC(unittest.TestCase):
         self.run_procs([
             ['swic', '/dev/spacewire0',
              '-m', str(mtu),
-             '-s', str(speed)],
+             '-s', str(self.speed)],
             ['swic', '/dev/spacewire1',
              '-m', str(mtu),
-             '-s', str(speed)],
+             '-s', str(self.speed)],
             ])
 
         for i in range(self.iters):
@@ -366,10 +362,10 @@ class TestcaseSWIC(unittest.TestCase):
             res2 = filecmp.cmp(input_tmp.name, output_tmp.name)
             self.assertTrue(res1,
                             'SWIC0 to SWIC1 files mismatch, speed={}, mtu={}.'.
-                            format(speed, mtu))
+                            format(self.speed, mtu))
             self.assertTrue(res2,
                             'SWIC1 to SWIC0 files mismatch, speed={}, mtu={}.'.
-                            format(speed, mtu))
+                            format(self.speed, mtu))
 
 
 if __name__ == '__main__':
