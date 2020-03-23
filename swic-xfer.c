@@ -3,7 +3,7 @@
  *
  * Copyright 2019 RnD Center "ELVEES", JSC
  *
- * SPDX-License-Identifier: GPL-2.0
+ * SPDX-License-Identifier: MIT
  */
 
 #include <errno.h>
