@@ -8,6 +8,7 @@ import math
 import os
 import re
 import subprocess
+import sys
 
 
 def save_log(dev, mode, throughput_app, total_time, tx_speed, mtu_list):
@@ -50,7 +51,7 @@ def save_info_to_file(filename, tx_speed, rx_speed, tm, mtu_list):
         writer.writerows(info)
 
 
-def run_procs(list_of_lists_of_args):
+def run_procs(list_of_lists_of_args, verbose):
     stdouts = []
     process = []
 
@@ -58,14 +59,18 @@ def run_procs(list_of_lists_of_args):
         process.append(subprocess.Popen(proc,
                                         stdout=subprocess.PIPE,
                                         stderr=subprocess.STDOUT))
+        if verbose:
+            print(f'Started "{" ".join(proc)}"')
 
     for i, proc in enumerate(process):
         stdouts.append(proc.communicate()[0])
 
     for proc, stdout in zip(process, stdouts):
         if proc.returncode != 0:
-            print('Non zero return code, stdout/stderr: {}'.format(
-                                         stdout.decode('UTF-8')))
+            print((f'Error: return code {proc.returncode} for "{" ".join(proc.args)}",'
+                   ' stdout/stderr:'),
+                  file=sys.stderr)
+            print(stdout.decode('UTF-8'), file=sys.stderr)
     return stdouts
 
 
@@ -86,7 +91,7 @@ def check(inputfile, outputfile, speed_tx, speed_rx, mtu, packets, stdouts):
          '--link', 'up',
          '/dev/spacewire1'
          ]
-        ])
+        ], verbose=args.v)
 
     stdouts = run_procs([
         ['swic-xfer',
@@ -100,12 +105,12 @@ def check(inputfile, outputfile, speed_tx, speed_rx, mtu, packets, stdouts):
          '-f', outputfile,
          '-n', str(packets),
          '-v'],
-        ])
+        ], verbose=args.v)
 
     run_procs([
         ['swic', '--link', 'down', '/dev/spacewire0'],
         ['swic', '--link', 'down', '/dev/spacewire1'],
-        ])
+        ], verbose=args.v)
 
     if args.v:
         print('data exchange with tx_speed = {}, rx_speed = {}, mtu = {} is successful'
