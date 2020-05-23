@@ -203,10 +203,15 @@ class TestcaseSWIC(unittest.TestCase):
         return int((subprocess.check_output(['devmem',
                                              hex(addr)]).strip()).decode('UTF-8'), 16)
 
-    def wait_event(self, mask, value):
+    def wait_event(self, mask, value, timeout=None):
+        if timeout is None:
+            timeout = self.timeout
         rx_status = self.read32(0x38084004)
+        started = time.monotonic()
         while rx_status & mask != value:
             rx_status = self.read32(0x38084004)
+            self.assertLess(time.monotonic() - started, timeout,
+                            'Timeout waiting for SpaceWire event')
 
     def test_flush_fifo(self):
         rxfifo_size = 384
