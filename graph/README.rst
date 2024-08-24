@@ -1,3 +1,5 @@
+.. Copyright 2019-2024 RnD Center "ELVEES", JSC
+
 This directory contains host environment and tools for analyzing SpaceWire
 performance. Tools are run via SSH on remote MCom-02 `Salute-EL24PM`__ board
 installed on `Salute-EL24OM1`__ board, copies raw data back to host and analyzes
@@ -20,4 +22,3 @@ Initialize Python environment::
 Run analysis::
 
   make TARGET_IP=<device-ip-or-hostname>
-
